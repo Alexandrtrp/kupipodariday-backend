@@ -16,7 +16,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly hashService: HashService,
-  ) {}
+  ) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     const existingUser = await this.usersRepository.findOne({
@@ -75,19 +75,27 @@ export class UsersService {
   async updateOne(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findById(id);
 
+    if (updateUserDto.email || updateUserDto.username) {
+      const existing = await this.usersRepository.findOne({
+        where: [
+          ...(updateUserDto.email ? [{ email: updateUserDto.email }] : []),
+          ...(updateUserDto.username ? [{ username: updateUserDto.username }] : []),
+        ],
+      });
+
+      if (existing && existing.id !== user.id) {
+        throw new ConflictException(
+          'Пользователь с таким email или username уже зарегистрирован',
+        );
+      }
+    }
+
     if (updateUserDto.password) {
-      updateUserDto.password = await this.hashService.hash(
-        updateUserDto.password,
-      );
+      updateUserDto.password = await this.hashService.hash(updateUserDto.password);
     }
 
     await this.usersRepository.update(id, updateUserDto);
     return this.findById(id);
-  }
-
-  async removeOne(id: number): Promise<void> {
-    await this.findById(id);
-    await this.usersRepository.delete(id);
   }
 
   async findUserWishes(username: string) {
